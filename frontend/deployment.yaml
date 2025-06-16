@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment
+  namespace: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter
+  template:
+    metadata:
+      labels:
+        app: jupyter
+    spec:
+      imagePullSecrets:
+      - name: gitlab-registry-secret
+      containers:
+      - name: jupyter-container
+        image: registry.gitlab.unimelb.edu.au:5005/yutazhou/comp90024_team_17:frontend
+        args:
+          - jupyter
+          - notebook
+          - --ip=0.0.0.0             
+          - --port=8888
+          - --no-browser
+          - --allow-root            
+          - --NotebookApp.token=''   
+          - --NotebookApp.password=''
+        ports:
+          - containerPort: 8888
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "1"
+            ephemeral-storage: "4Gi"
+          limits:
+            memory: "9Gi"
+            cpu: "2"
+            ephemeral-storage: "6Gi"
+        volumeMounts:
+          - name: notebook-storage
+            mountPath: /home/jovyan/work
+      volumes:
+        - name: notebook-storage
+          emptyDir: {} 
+

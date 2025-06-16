@@ -1,0 +1,39 @@
+curl -XPUT -k 'https://127.0.0.1:9200/mastodon_weather' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "settings": {
+      "index": {
+        "number_of_shards": 3,
+        "number_of_replicas": 1
+      }
+    },
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "author_username": {
+          "type": "keyword"
+        },
+        "author_display_name": {
+          "type": "text"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "media_urls": {
+          "type": "keyword"
+        }
+      }
+    }
+  }' \
+  --user 'elastic:elastic' | jq '.'

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      imagePullSecrets:
+      - name: gitlab-registry-secret
+      containers:
+      - name: backend-container
+        image: registry.gitlab.unimelb.edu.au:5005/yutazhou/comp90024_team_17:latest
+        ports:
+          - containerPort: 5000
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "500m"
+            ephemeral-storage: "4Gi"
+          limits:
+            memory: "8Gi"
+            cpu: "1"
+            ephemeral-storage: "6Gi"

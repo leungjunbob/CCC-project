@@ -1,0 +1,229 @@
+PUT _ingest/pipeline/scalable_convert_arrays
+{
+  "description": "Convert array fields to single values",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Process fields that exist in original data
+          def fieldsToConvert = ["author_display_name", "author_username", "content", "id", "url", "created_at", "tags"];
+          for (def field : fieldsToConvert) {
+            if (ctx.containsKey(field) && ctx[field] instanceof List && ctx[field].size() > 0) {
+              // Special handling for tags field - keep as array
+              if (field == "tags") {
+                continue;
+              }
+              // Convert other fields to single values
+              ctx[field] = ctx[field][0];
+            }
+          }
+          
+          // Add processed field
+          ctx.processed = true;
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_add_cleaned_content
+{
+  "description": "Add cleaned_content field",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Only create cleaned_content when content field exists
+          if (ctx.containsKey("content") && ctx.content != null) {
+            // Create new field cleaned_content with same content
+            ctx.cleaned_content = ctx.content;
+          }
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_to_lowercase
+{
+  "description": "Convert cleaned_content to lowercase",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Ensure cleaned_content field exists
+          if (ctx.containsKey("cleaned_content") && ctx.cleaned_content != null) {
+            ctx.cleaned_content = ctx.cleaned_content.toLowerCase();
+          }
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_remove_html
+{
+  "description": "Remove HTML tags",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Ensure cleaned_content field exists
+          if (ctx.containsKey("cleaned_content") && ctx.cleaned_content != null) {
+            String content = ctx.cleaned_content;
+            
+            // Replace common HTML tags
+            def htmlTags = ["<p>", "</p>", "<a", "</a>", "<span", "</span>", 
+                           "<div", "</div>", "<br", "<hr", "<img", 
+                           "<h1", "</h1>", "<h2", "</h2>", "<h3", "</h3>", 
+                           "<h4", "</h4>", "<h5", "</h5>", "<h6", "</h6>", 
+                           "<ul", "</ul>", "<li", "</li>", "<ol", "</ol>", 
+                           "<strong", "</strong>", "<em", "</em>", 
+                           "<b", "</b>", "<i", "</i>", "<u", "</u>"];
+                           
+            // Replace each tag individually
+            for (def tag : htmlTags) {
+              if (content.contains(tag)) {
+                content = content.replace(tag, " ");
+              }
+            }
+            
+            // Replace any remaining angle brackets
+            if (content.contains(">")) content = content.replace(">", " ");
+            if (content.contains("<")) content = content.replace("<", " ");
+            
+            ctx.cleaned_content = content;
+          }
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_remove_punctuation
+{
+  "description": "Remove punctuation marks",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Ensure cleaned_content field exists
+          if (ctx.containsKey("cleaned_content") && ctx.cleaned_content != null) {
+            String content = ctx.cleaned_content;
+            
+            // Define all punctuation marks to replace
+            def punctuations = [".", ",", "!", "?", ":", ";", "-", "_", 
+                               "(", ")", "[", "]", "{", "}", "\"", "'", 
+                               "/", "\\\\", "@", "#", "$", "%", "^", "&", 
+                               "*", "+", "=", "|", "~", "`"];
+            
+            // Replace each punctuation mark individually
+            for (def punc : punctuations) {
+              if (content.contains(punc)) {
+                content = content.replace(punc, " ");
+              }
+            }
+            
+            ctx.cleaned_content = content;
+          }
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_clean_spaces
+{
+  "description": "Clean extra spaces",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": """
+          // Ensure cleaned_content field exists
+          if (ctx.containsKey("cleaned_content") && ctx.cleaned_content != null) {
+            String content = ctx.cleaned_content;
+            
+            // Replace multiple spaces with single space
+            while (content.contains("  ")) {
+              content = content.replace("  ", " ");
+            }
+            
+            // Remove leading and trailing spaces
+            ctx.cleaned_content = content.trim();
+          }
+        """
+      }
+    }
+  ]
+}
+
+PUT _ingest/pipeline/scalable_master_pipeline
+{
+  "description": "Scalable master cleaning pipeline",
+  "processors": [
+    {
+      "pipeline": {
+        "name": "scalable_convert_arrays"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "scalable_add_cleaned_content"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "scalable_to_lowercase"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "scalable_remove_html"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "scalable_remove_punctuation"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "scalable_clean_spaces"
+      }
+    }
+  ]
+}
+
+PUT mastodon_ai_cleaned
+{
+  "mappings": {
+    "properties": {
+      "id": { "type": "keyword" },
+      "author_username": { "type": "keyword" },
+      "author_display_name": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+      "content": { "type": "text" },
+      "cleaned_content": { "type": "text" },
+      "created_at": { "type": "date" },
+      "url": { "type": "keyword" },
+      "tags": { "type": "keyword" },
+      "processed": { "type": "boolean" }
+    }
+  }
+}
+
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "mastodon_ai"
+  },
+  "dest": {
+    "index": "mastodon_ai_cleaned",
+    "pipeline": "scalable_master_pipeline"
+  }
+}

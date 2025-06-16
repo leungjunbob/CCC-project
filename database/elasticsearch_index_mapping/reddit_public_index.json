@@ -1,0 +1,25 @@
+curl -XPUT -k 'https://127.0.0.1:9200/reddit_public' \
+  --header 'Content-Type: application/json' \
+  --user 'elastic:elastic' \
+  --data '{
+    "settings": {
+      "index": {
+        "number_of_shards": 3,
+        "number_of_replicas": 1
+      }
+    },
+    "mappings": {
+      "properties": {
+        "id": { "type": "keyword" },
+        "created_utc": { "type": "date" },
+        "url": { "type": "keyword" },
+        "content": { "type": "text" },
+        "title": { "type": "text" },
+        "author": { "type": "keyword" },
+        "score": { "type": "integer" },
+        "num_comments": { "type": "integer" },
+        "subreddit": { "type": "keyword" },
+        "depth": { "type": "integer" }
+      }
+    }
+  }' | jq '.'
